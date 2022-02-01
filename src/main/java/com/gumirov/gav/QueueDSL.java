@@ -2,9 +2,11 @@ package com.gumirov.gav;
 
 import com.gumirov.gav.queueDsl.EventObject;
 import com.gumirov.gav.queueDsl.EventQueue;
+import com.gumirov.gav.queueDsl.QueueException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.protocol.types.Field;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.d0sl.domain.DomainFunction;
@@ -13,8 +15,10 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.d0sl.machine.D0SL;
 import org.d0sl.machine.SemanticException;
+import org.everit.json.schema.ValidationException;
 import org.json.JSONException;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Properties;
 
@@ -51,8 +55,13 @@ public class QueueDSL {
         return true;
     }
 
+    @DomainFunction(name = "get class uri")
+    public String getClassUri(EventObject obj) {
+        return obj.getUri();
+    }
+
     @DomainFunction(name = "process queue")
-    public boolean initQueue(String modelName, String processPredicateName) {
+    public boolean initQueue(String modelName, String processPredicateName, String OWL2JSONAPI) {
         kafkaProps.setProperty("group.id", modelName+".consumer"); // set group id
 
         KafkaConsumer<String, String> consumer = new KafkaConsumer<>(this.kafkaProps);
@@ -67,9 +76,16 @@ public class QueueDSL {
                         record.offset(), record.key(), record.value()));
 
                 try {
-                    obj = new EventObject(record.value());
+                    obj = new EventObject(record.value(), OWL2JSONAPI);
                 } catch (JSONException e){
                     log.error("Event value is not a valid JSON!", e);
+                } catch (ValidationException vex) {
+                    log.error("Object is not valid!", vex);
+                    log.error("Nested exceptions: " + vex.getAllMessages());
+                } catch (IOException e) {
+                    log.error("Can't validate object due to IO error!", e);
+                } catch (QueueException e) {
+                    log.error("Can't validate object due to internal exception or invalid class IRI!", e);
                 }
 
                 if (obj != null){
