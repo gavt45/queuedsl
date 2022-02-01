@@ -1,0 +1,43 @@
+plugins {
+    id 'java'
+}
+
+group 'com.gumirov.gav.queueDsl'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation fileTree('lib')
+    implementation group: 'org.apache.kafka', name: 'kafka-clients', version: '3.1.0'
+    implementation group: 'org.json', name: 'json', version: '20211205'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+}
+
+jar {
+    manifest {
+        attributes(
+                'Built-By'       : System.properties['user.name'],
+                'Build-Timestamp': new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ").format(new Date()),
+                'Created-By'     : "Gradle ${gradle.gradleVersion}",
+                'Build-Jdk'      : "${System.properties['java.version']} (${System.properties['java.vendor']} ${System.properties['java.vm.version']})",
+                'Build-OS'       : "${System.properties['os.name']} ${System.properties['os.arch']} ${System.properties['os.version']}",
+                'Main-Class'     : 'org.d0sl.CommandLineExecutor'
+        )
+    }
+}
+
+task jarWithDeps(type: Jar) {
+    duplicatesStrategy "exclude"
+    baseName = project.name + '-deps'
+    from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+    with jar
+}
+
+test {
+    useJUnitPlatform()
+}
