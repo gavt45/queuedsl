@@ -1,6 +1,7 @@
 package com.gumirov.gav;
 
 import com.gumirov.gav.queueDsl.EventObject;
+import com.gumirov.gav.queueDsl.EventObjectFactory;
 import com.gumirov.gav.queueDsl.EventQueue;
 import com.gumirov.gav.queueDsl.QueueException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -27,8 +28,9 @@ public class QueueDSL {
     private static final Logger log = LogManager.getLogger(QueueDSL.class);
     private static final String topic = "events";
     private Properties kafkaProps;
+    private EventObjectFactory objectFactory = new EventObjectFactory();
 
-    public QueueDSL(){}
+    public QueueDSL() {}
 
     @DomainFunction(name = "set kafka props")
     public boolean setKafka(String brokers, String username, String password) {
@@ -55,13 +57,19 @@ public class QueueDSL {
         return true;
     }
 
+    @DomainFunction(name = "set val props")
+    public boolean setValidationProps(String owl2jsonURI, String baseObjectURI) throws QueueException, IOException {
+        this.objectFactory = new EventObjectFactory(owl2jsonURI, baseObjectURI);
+        return true;
+    }
+
     @DomainFunction(name = "get class uri")
     public String getClassUri(EventObject obj) {
         return obj.getUri();
     }
 
     @DomainFunction(name = "process queue")
-    public boolean initQueue(String modelName, String processPredicateName, String OWL2JSONAPI) {
+    public boolean initQueue(String modelName, String processPredicateName) {
         kafkaProps.setProperty("group.id", modelName+".consumer"); // set group id
 
         KafkaConsumer<String, String> consumer = new KafkaConsumer<>(this.kafkaProps);
@@ -76,7 +84,7 @@ public class QueueDSL {
                         record.offset(), record.key(), record.value()));
 
                 try {
-                    obj = new EventObject(record.value(), OWL2JSONAPI);
+                    obj = this.objectFactory.makeEventObject(record.value());
                 } catch (JSONException e){
                     log.error("Event value is not a valid JSON!", e);
                 } catch (ValidationException vex) {
@@ -107,6 +115,16 @@ public class QueueDSL {
         }catch (JSONException e){
             log.error("No such key in object: " + key);
             return "";
+        }
+    }
+
+    @DomainFunction(name = "get numeric parameter")
+    public Double getLongKey(EventObject obj, String key){
+        try {
+            return obj.getDouble(key);
+        }catch (JSONException e){
+            log.error("No such key in object: " + key);
+            return 0.0;
         }
     }
 }
